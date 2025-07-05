@@ -1,6 +1,5 @@
 from drf_spectacular.utils import extend_schema
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -8,17 +7,15 @@ from .models import Company
 from .serializer import CompanySerializer
 from .permissions import IsCompanyOwnerOrReadAndCreate
 
-
 @extend_schema(tags=['company'])
-class CompanyViewSet(viewsets.ModelViewSet):
+class CompanyAPIView(generics.GenericAPIView):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated, IsCompanyOwnerOrReadAndCreate]
 
     @extend_schema(
         description="Создание компании. Доступно только авторизированным пользователям.")
-    @action(detail=False, methods=["POST"], url_path="create")
-    def create_company(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         if request.user.company is not None:
             return Response({"detail": "У Вас уже есть компания"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -34,11 +31,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         description="Удаление компании. Доступно только владельцу компании.")
-    @action(detail=False, methods=["DELETE"], url_path="delete")
-    def delete_company(self, request):
-        company = self.get_object()
+    def delete(self, request):
+        company = request.user.company
 
-        if not (request.user.is_company_owner and request.user.company == company):
+        if not (request.user.is_company_owner and company):
             return Response({
                 "detail": "Вы не являетесь владельцем этой компании"
             }, status=status.HTTP_403_FORBIDDEN)
@@ -52,11 +48,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         description="Редактирование компании. Доступно только владельцу компании.")
-    @action(detail=False, methods=['PUT'], url_path="update")
-    def update_company(self, request):
-        company = self.get_object()
+    def put(self, request):
+        company = request.user.company
 
-        if not (request.user.is_company_owner and request.user.company == company):
+        if not (request.user.is_company_owner and company):
             return Response({
                 "detail": "У вас нет прав на изменение компании"
             }, status=status.HTTP_403_FORBIDDEN)

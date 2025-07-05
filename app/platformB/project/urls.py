@@ -1,13 +1,11 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
 
-from . import views
-
-
-router = DefaultRouter()
-router.register(r'companies', views.CompanyViewSet)
-
+from .views import CompanyAPIView
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('companies/', CompanyAPIView.as_view({
+        'post': 'post',
+        'put': 'put',
+        'delete': 'delete'
+    }), name='company-operations'),
 ]
