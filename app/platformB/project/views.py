@@ -7,11 +7,19 @@ from .models import Company
 from .serializer import CompanySerializer
 from .permissions import IsCompanyOwnerOrReadAndCreate
 
+
 @extend_schema(tags=['company'])
 class CompanyAPIView(generics.GenericAPIView):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated, IsCompanyOwnerOrReadAndCreate]
+
+    @extend_schema(
+        description="Получение компании по ID. Доступно всем авторизованным пользователям.")
+    def get(self, request, pk, *args, **kwargs):
+        company = Company.objects.get(pk=pk)
+        serializer = self.get_serializer(company)
+        return Response(serializer.data)
 
     @extend_schema(
         description="Создание компании. Доступно только авторизированным пользователям.")
