@@ -222,7 +222,7 @@ class SupplierCreateAPIView(APIView):
     )
     def post(self, request):
         request_data = request.data.copy()
-        request_data['company'] = request.user.company.pk
+        request_data['company'] = request.user.company.id
         print(request_data)
 
         serializer = SupplierSerializer(data=request_data)

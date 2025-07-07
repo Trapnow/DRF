@@ -14,7 +14,7 @@ urlpatterns = [
     path('storages/<int:pk>/update/', StorageUpdateAPIView.as_view(), name='storage-update'),
     path('storages/<int:pk>/delete/', StorageDestroyAPIView.as_view(), name='storage-delete'),
 
-    path('suppliers/<int:pk>/', SupplierListAPIView.as_view(), name='supplier-list'),
+    path('suppliers/list/', SupplierListAPIView.as_view(), name='supplier-list'),
     path('suppliers/create/', SupplierCreateAPIView.as_view(), name='supplier-create'),
     path('suppliers/<int:pk>/update/', SupplierUpdateAPIView.as_view(), name='supplier-update'),
     path('suppliers/<int:pk>/delete/', SupplierDestroyAPIView.as_view(), name='supplier-delete'),
