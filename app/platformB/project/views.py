@@ -4,8 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Company, Storage
-from .serializer import CompanySerializer, StorageSerializer, StorageDetailSerializer
+from .models import Company, Storage, Supplier
+from .serializer import CompanySerializer, StorageSerializer, StorageDetailSerializer, SupplierSerializer
 from .permissions import IsCompanyOwnerOrReadOnly, IsRelatedToCompany
 
 
@@ -197,3 +197,79 @@ class StorageDestroyAPIView(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Storage.DoesNotExist:
             return Response({"detail": "Склад не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SupplierListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['supplier'],
+        description="Получение списка поставщиков компании"
+    )
+    def get(self, request):
+        suppliers = Supplier.objects.filter(company=request.user.company)
+        serializer = SupplierSerializer(suppliers, many=True)
+        return Response(serializer.data)
+
+
+class SupplierCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['supplier'],
+        description="Создание нового поставщика",
+        request=SupplierSerializer
+    )
+    def post(self, request):
+        request_data = request.data.copy()
+        request_data['company'] = request.user.company.pk
+        print(request_data)
+
+        serializer = SupplierSerializer(data=request_data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SupplierUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['supplier'],
+        description="Обновление информации о поставщике",
+        request=SupplierSerializer
+    )
+    def put(self, request, pk):
+        try:
+            supplier = Supplier.objects.get(pk=pk, company=request.user.company)
+
+            serializer = SupplierSerializer(
+                supplier,
+                data=request.data,
+                partial=True
+            )
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Supplier.DoesNotExist:
+            return Response({"detail": "Поставщик не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SupplierDestroyAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['supplier'],
+        description="Удаление поставщика"
+    )
+    def delete(self, request, pk):
+        try:
+            supplier = Supplier.objects.get(pk=pk, company=request.user.company)
+            supplier.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Supplier.DoesNotExist:
+            return Response({"detail": "Поставщик не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+
