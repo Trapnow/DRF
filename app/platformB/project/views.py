@@ -392,7 +392,6 @@ class SupplyCreateAPIView(APIView):
         if serializer.is_valid():
             supplier = serializer.validated_data['supplier']
             delivery_date = serializer.validated_data['delivery_date']
-            products_data = serializer.validated_data['products']
 
             if supplier.company != request.user.company:
                 return Response(
