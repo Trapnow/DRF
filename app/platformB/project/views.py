@@ -389,40 +389,55 @@ class SupplyCreateAPIView(APIView):
     )
     def post(self, request):
         serializer = SupplySerializer(data=request.data)
-        if serializer.is_valid():
-            supplier = serializer.validated_data['supplier']
-            delivery_date = serializer.validated_data['delivery_date']
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            if supplier.company != request.user.company:
+        validated_data = serializer.validated_data
+        supplier = validated_data['supplier']
+        delivery_date = validated_data['delivery_date']
+        products_data = request.data.get('products', [])
+
+        if supplier.company != request.user.company:
+            return Response(
+                {"detail": "Поставщик принадлежит другой компании"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        supply = Supply.objects.create(
+            supplier=supplier,
+            delivery_date=delivery_date
+        )
+
+        for product_data in products_data:
+            product_id = product_data.get('product')
+            quantity = product_data.get('quantity')
+
+            try:
+                product = Product.objects.get(id=product_id)
+            except Product.DoesNotExist:
                 return Response(
-                    {"detail": "Поставщик принадлежит другой компании"},
+                    {"detail": f"Товар с ID {product_id} не найден"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if product.storage.company != request.user.company:
+                return Response(
+                    {"detail": "В списке есть товары, которые принадлежат другой компании"},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            products_data = serializer.validated_data['products']
-            for product_data in products_data:
-                product = product_data['product']
-                if product.storage.company != request.user.company:
-                    return Response(
-                        {"detail": "В списке есть товары которые принадлежат другой компании"},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-
-            supply = Supply.objects.create(
-                supplier=supplier,
-                delivery_date=delivery_date
+            SupplyProduct.objects.create(
+                supply=supply,
+                product=product,
+                quantity=quantity
             )
 
-            for product_data in products_data:
-                SupplyProduct.objects.create(
-                    supply=supply,
-                    product=product_data['product'],
-                    quantity=product_data['quantity']
-                )
+            product.quantity += quantity
+            product.save()
 
-            serializer = SupplySerializer(supply)
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        supply = Supply.objects.prefetch_related('supplyproduct_set').get(id=supply.id)
+        serializer = SupplySerializer(supply)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class SupplyListAPIView(APIView):

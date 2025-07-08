@@ -44,9 +44,15 @@ class SupplyProductSerializer(serializers.ModelSerializer):
 
 
 class SupplySerializer(serializers.ModelSerializer):
-    products = SupplyProductSerializer(many=True)
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = Supply
         fields = ['id', 'supplier', 'delivery_date', 'products']
         read_only_fields = ['id']
+
+    def get_products(self, obj):
+        supply_products = obj.supplyproduct_set.all()
+
+        serializer = SupplyProductSerializer(supply_products, many=True)
+        return serializer.data

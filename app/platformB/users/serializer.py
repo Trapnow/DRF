@@ -17,3 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
         )
         return user
+
+
+class AttachUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
