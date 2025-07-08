@@ -13,13 +13,13 @@ class IsCompanyOwnerOrReadOnly(permissions.BasePermission):
 
 class IsRelatedToCompany(permissions.BasePermission):
     def has_permission(self, request, view):
-        storage_pk = view.kwargs.get('pk')
+        return request.user.company is not None
 
-        if not storage_pk:
-            return True
+    def has_object_permission(self, request, view, obj):
+        if hasattr(obj, 'company'):
+            return obj.company == request.user.company
 
-        try:
-            storage = Storage.objects.get(pk=storage_pk)
-            return request.user.company == storage.company
-        except Storage.DoesNotExist:
-            return False
+        if hasattr(obj, 'storage'):
+            return obj.storage.company == request.user.company
+
+        return False
