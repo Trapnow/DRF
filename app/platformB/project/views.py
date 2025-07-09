@@ -397,6 +397,12 @@ class SupplyCreateAPIView(APIView):
         delivery_date = validated_data['delivery_date']
         products_data = request.data.get('products', [])
 
+        if not products_data:
+            return Response(
+                {"detail": "Список продуктов не может быть пустым"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if supplier.company != request.user.company:
             return Response(
                 {"detail": "Поставщик принадлежит другой компании"},
