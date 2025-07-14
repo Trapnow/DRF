@@ -25,4 +25,9 @@ urlpatterns = [
 
     path('supplies/list/', SupplyListAPIView.as_view(), name='supply-list'),
     path('supplies/create/', SupplyCreateAPIView.as_view(), name='supply-add'),
+
+    path('sales/list/', SaleListAPIView.as_view(), name='sales-list'),
+    path('sales/add/', SaleCreateAPIView.as_view(), name='sale-add'),
+    path('sales/<int:pk>/update/', SaleUpdateAPIView.as_view(), name='sale-update'),
+    path('sales/<int:pk>/delete/', SaleDestroyAPIView.as_view(), name='sale-delete'),
 ]

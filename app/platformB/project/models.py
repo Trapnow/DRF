@@ -38,7 +38,7 @@ class Product(models.Model):
     title = models.CharField(max_length=100, unique=True)
     purchase_price = models.DecimalField(max_digits=10, decimal_places=2)
     sale_price = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity = models.IntegerField(default=0)
+    quantity = models.PositiveIntegerField(default=0)
     storage = models.ForeignKey(Storage, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -54,4 +54,16 @@ class SupplyProduct(models.Model):
         return f"{self.quantity} {self.product.title} в поставке {self.supply.id}"
 
 
+class Sale(models.Model):
+    buyer_name = models.CharField(max_length=100)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    sale_date = models.DateTimeField()
 
+    def __str__(self):
+        return f"Продажа - {self.buyer_name}"
+
+
+class ProductSale(models.Model):
+    product = models.ForeignKey(Product, related_name='product_sales', on_delete=models.CASCADE)
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()

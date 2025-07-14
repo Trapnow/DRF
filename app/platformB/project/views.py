@@ -2,13 +2,14 @@ from itertools import product
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Company, Storage, Supplier, Product, Supply, SupplyProduct
+from .models import Company, Storage, Supplier, Product, Supply, SupplyProduct, Sale, ProductSale
 from .serializer import CompanySerializer, StorageSerializer, StorageDetailSerializer, SupplierSerializer, \
-    ProductSerializer, SupplySerializer
+    ProductSerializer, SupplySerializer, SaleSerializer
 from .permissions import IsCompanyOwnerOrReadOnly, IsRelatedToCompany
 
 
@@ -458,3 +459,167 @@ class SupplyListAPIView(APIView):
 
         serializer = SupplySerializer(supplies, many=True)
         return Response(serializer.data)
+
+
+class SaleCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['sales'],
+        description="Создание новой продажи",
+        request=SaleSerializer
+    )
+    def post(self, request):
+        serializer = SaleSerializer(data=request.data, context={'request': request})
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if not serializer.validated_data.get('product_sales'):
+            return Response(
+                {"detail": "Список товаров не может быть пустым"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        product_sales_data = serializer.validated_data['product_sales']
+
+        for product_sale in product_sales_data:
+            try:
+                product = Product.objects.get(id=product_sale['product'])
+            except Product.DoesNotExist:
+                return Response(
+                    {"detail": f"Товар с ID {product_sale['product']} не найден"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if product.quantity < product_sale['quantity']:
+                return Response(
+                    {
+                        "detail": f"Недостаточно товара {product.title}. "
+                                  f"Доступно: {product.quantity}, "
+                                  f"Запрошено: {product_sale['quantity']}"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        try:
+            sale = Sale.objects.create(
+                buyer_name=serializer.validated_data['buyer_name'],
+                company=request.user.company,
+                sale_date=serializer.validated_data['sale_date']
+            )
+
+            for product_sale in product_sales_data:
+                ProductSale.objects.create(
+                    sale=sale,
+                    product_id=product_sale['product'],
+                    quantity=product_sale['quantity']
+                )
+
+                product = Product.objects.get(id=product_sale['product'])
+                product.quantity -= product_sale['quantity']
+                product.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SaleListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+    pagination_class = PageNumberPagination
+
+    @extend_schema(
+        tags=['sales'],
+        description="Получение списка продаж"
+    )
+    def get(self, request):
+        company = request.user.company
+        queryset = Sale.objects.filter(company=company)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if start_date:
+            queryset = queryset.filter(sale_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(sale_date__lte=end_date)
+
+        serializer = SaleSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class SaleUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+    serializer_class = SaleSerializer
+
+    @extend_schema(
+        tags=['sales'],
+        description="Обновление существующей продажи",
+        request = SaleSerializer,
+    )
+
+    def put(self, request, sale_id):
+        try:
+            sale = Sale.objects.get(
+                id=sale_id,
+                company=request.user.company
+            )
+
+            serializer = self.serializer_class(
+                sale,
+                data=request.data,
+                partial=True,
+                context={'request': request}
+            )
+
+            if not serializer.is_valid():
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            validated_data = serializer.validated_data
+
+            if 'product_sales' in validated_data:
+                return Response(
+                    {"detail": "Изменение списка товаров запрещено"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            sale.buyer_name = validated_data.get('buyer_name', sale.buyer_name)
+            sale.sale_date = validated_data.get('sale_date', sale.sale_date)
+            sale.save()
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Sale.DoesNotExist:
+            return Response(
+                {"detail": "Продажа не найдена"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class SaleDestroyAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsRelatedToCompany]
+
+    @extend_schema(
+        tags=['sales'],
+        description="Удаление продажи"
+    )
+    def delete(self, request, sale_id):
+        try:
+            sale = Sale.objects.get(
+                id=sale_id,
+                company=request.user.company
+            )
+            sale.delete()
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Sale.DoesNotExist:
+            return Response(
+                {"detail": "Продажа не найдена"},
+                status=status.HTTP_404_NOT_FOUND
+            )
