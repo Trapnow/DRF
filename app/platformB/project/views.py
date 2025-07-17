@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from .models import Company, Storage, Supplier, Product, Supply, SupplyProduct, Sale, ProductSale
 from .serializer import CompanySerializer, StorageSerializer, StorageDetailSerializer, SupplierSerializer, \
-    ProductSerializer, SupplySerializer, SaleSerializer
+    ProductSerializer, SupplySerializer, SaleSerializer, SaleUpdateSerializer
 from .permissions import IsCompanyOwnerOrReadOnly, IsRelatedToCompany
 
 
@@ -481,25 +481,25 @@ class SaleCreateAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        product_sales_data = serializer.validated_data['product_sales']
+        products_info = []
+        for product_sale in serializer.validated_data['product_sales']:
+            product_id = product_sale['product_id']
+            quantity = product_sale['quantity']
 
-        for product_sale in product_sales_data:
             try:
-                product = Product.objects.get(id=product_sale['product'])
+                product = Product.objects.get(id=product_id)
+                if product.quantity < quantity:
+                    return Response(
+                        {
+                            "detail": f"Недостаточно товара {product.title}. Доступно: {product.quantity}, запрошено: {quantity}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                products_info.append((product, quantity))
             except Product.DoesNotExist:
                 return Response(
-                    {"detail": f"Товар с ID {product_sale['product']} не найден"},
+                    {"detail": f"Товар с ID {product_id} не найден"},
                     status=status.HTTP_404_NOT_FOUND
-                )
-
-            if product.quantity < product_sale['quantity']:
-                return Response(
-                    {
-                        "detail": f"Недостаточно товара {product.title}. "
-                                  f"Доступно: {product.quantity}, "
-                                  f"Запрошено: {product_sale['quantity']}"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
                 )
 
         try:
@@ -509,17 +509,16 @@ class SaleCreateAPIView(APIView):
                 sale_date=serializer.validated_data['sale_date']
             )
 
-            for product_sale in product_sales_data:
+            for product, quantity in products_info:
                 ProductSale.objects.create(
                     sale=sale,
-                    product_id=product_sale['product'],
-                    quantity=product_sale['quantity']
+                    product=product,
+                    quantity=quantity
                 )
-
-                product = Product.objects.get(id=product_sale['product'])
-                product.quantity -= product_sale['quantity']
+                product.quantity -= quantity
                 product.save()
 
+            serializer = SaleSerializer(sale)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -555,18 +554,18 @@ class SaleListAPIView(APIView):
 
 class SaleUpdateAPIView(APIView):
     permission_classes = [IsAuthenticated, IsRelatedToCompany]
-    serializer_class = SaleSerializer
+    serializer_class = SaleUpdateSerializer
 
     @extend_schema(
         tags=['sales'],
         description="Обновление существующей продажи",
-        request = SaleSerializer,
+        request = SaleUpdateSerializer,
     )
 
-    def put(self, request, sale_id):
+    def put(self, request, pk):
         try:
             sale = Sale.objects.get(
-                id=sale_id,
+                id=pk,
                 company=request.user.company
             )
 
@@ -608,10 +607,10 @@ class SaleDestroyAPIView(APIView):
         tags=['sales'],
         description="Удаление продажи"
     )
-    def delete(self, request, sale_id):
+    def delete(self, request, pk):
         try:
             sale = Sale.objects.get(
-                id=sale_id,
+                id=pk,
                 company=request.user.company
             )
             sale.delete()
